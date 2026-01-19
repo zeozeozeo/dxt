@@ -1,23 +1,26 @@
-![GitHub release (latest by date)](https://img.shields.io/github/v/release/mauserzjeh/dxt?style=flat-square)
+![GitHub release (latest by date)](https://img.shields.io/github/v/release/zeozeozeo/dxt?style=flat-square)
 
 # dxt
 
 DXT decompression library written in Go. It supports DXT1, DXT3 and DXT5 decompression to RGBA
 
 # Installation
+
 ```
-go get -u github.com/mauserzjeh/dxt
+go get -u github.com/zeozeozeo/dxt
 ```
 
 # Tests
+
 ```
 go test -v
 ```
 
 # Usage
+
 ```go
 // import the library
-import "github.com/mauserzjeh/dxt"
+import "github.com/zeozeozeo/dxt"
 
 var dxtBytes []byte
 var width uint
