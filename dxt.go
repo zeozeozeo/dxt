@@ -72,8 +72,13 @@ func DecodeDXT1(input []byte, width, height uint) (output []byte, err error) {
 
 			colors[0] = pack_rgba(r0, g0, b0, 255)
 			colors[1] = pack_rgba(r1, g1, b1, 255)
-			colors[2] = pack_rgba(c2(r0, r1, c0, c1), c2(g0, g1, c0, c1), c2(b0, b1, c0, c1), 255)
-			colors[3] = pack_rgba(c3(r0, r1), c3(g0, g1), c3(b0, b1), 255)
+			if c0 > c1 {
+				colors[2] = pack_rgba((2*r0+r1)/3, (2*g0+g1)/3, (2*b0+b1)/3, 255)
+				colors[3] = pack_rgba((r0+2*r1)/3, (g0+2*g1)/3, (b0+2*b1)/3, 255)
+			} else {
+				colors[2] = pack_rgba((r0+r1)/2, (g0+g1)/2, (b0+b1)/2, 255)
+				colors[3] = pack_rgba(0, 0, 0, 0)
+			}
 
 			bitcode := uint32(input[offset+4]) | uint32(input[offset+5])<<8 | uint32(input[offset+6])<<16 | uint32(input[offset+7])<<24
 			for i := 0; i < 16; i++ {
@@ -245,6 +250,7 @@ func DecodeDXT5(input []byte, width, height uint) (output []byte, err error) {
 
 			bitcode_a := uint64(input[offset]) | uint64(input[offset+1])<<8 | uint64(input[offset+2])<<16 | uint64(input[offset+3])<<24 | uint64(input[offset+4])<<32 | uint64(input[offset+5])<<40 | uint64(input[offset+6])<<48 | uint64(input[offset+7])<<56
 			bitcode_c := uint32(input[offset+12]) | uint32(input[offset+13])<<8 | uint32(input[offset+14])<<16 | uint32(input[offset+15])<<24
+			bitcode_a >>= 16
 
 			for i := 0; i < 16; i++ {
 				idx := i * 4
