@@ -45,6 +45,16 @@ func c3(c0, c1 uint32) uint32 {
 	return (c0 + 2*c1) / 3
 }
 
+// lerp_13 does linear interpolation for 1/3 blend
+func lerp_13(c0, c1 uint32) uint32 {
+	return (2*c0 + c1) / 3
+}
+
+// lerp_23 does linear interpolation for 2/3 blend
+func lerp_23(c0, c1 uint32) uint32 {
+	return (c0 + 2*c1) / 3
+}
+
 // DecodeDXT1 decodes a DXT1 encoded byte slice to a RGBA byte slice
 func DecodeDXT1(input []byte, width, height uint) (output []byte, err error) {
 	offset := uint(0)
@@ -215,27 +225,29 @@ func DecodeDXT5(input []byte, width, height uint) (output []byte, err error) {
 
 	for y := uint(0); y < block_count_y; y++ {
 		for x := uint(0); x < block_count_x; x++ {
-			alphas[0] = uint32(input[offset+0])
-			alphas[1] = uint32(input[offset+1])
+			a0 := uint32(input[offset+0])
+			a1 := uint32(input[offset+1])
+			alphas[0] = a0 << 24
+			alphas[1] = a1 << 24
 
-			if alphas[0] > alphas[1] {
-				alphas[2] = (alphas[0]*6 + alphas[1]) / 7
-				alphas[3] = (alphas[0]*5 + alphas[1]*2) / 7
-				alphas[4] = (alphas[0]*4 + alphas[1]*3) / 7
-				alphas[5] = (alphas[0]*3 + alphas[1]*4) / 7
-				alphas[6] = (alphas[0]*2 + alphas[1]*5) / 7
-				alphas[7] = (alphas[0] + alphas[1]*6) / 7
+			if a0 > a1 {
+				alphas[2] = ((a0*6 + a1) / 7) << 24
+				alphas[3] = ((a0*5 + a1*2) / 7) << 24
+				alphas[4] = ((a0*4 + a1*3) / 7) << 24
+				alphas[5] = ((a0*3 + a1*4) / 7) << 24
+				alphas[6] = ((a0*2 + a1*5) / 7) << 24
+				alphas[7] = ((a0 + a1*6) / 7) << 24
 			} else {
-				alphas[2] = (alphas[0]*4 + alphas[1]) / 5
-				alphas[3] = (alphas[0]*3 + alphas[1]*2) / 5
-				alphas[4] = (alphas[0]*2 + alphas[1]*3) / 5
-				alphas[5] = (alphas[0] + alphas[1]*4) / 5
-				alphas[7] = 255
+				alphas[2] = ((a0*4 + a1) / 5) << 24
+				alphas[3] = ((a0*3 + a1*2) / 5) << 24
+				alphas[4] = ((a0*2 + a1*3) / 5) << 24
+				alphas[5] = ((a0 + a1*4) / 5) << 24
+				alphas[6] = 0
+				alphas[7] = 255 << 24
 			}
 
-			for i := 0; i < 8; i++ {
-				alphas[i] <<= 24
-			}
+			bitcode_a := uint64(input[offset+2]) | uint64(input[offset+3])<<8 | uint64(input[offset+4])<<16 |
+				uint64(input[offset+5])<<24 | uint64(input[offset+6])<<32 | uint64(input[offset+7])<<40
 
 			c0 := uint32(uint16(input[offset+8]) | uint16(input[offset+9])<<8)
 			c1 := uint32(uint16(input[offset+10]) | uint16(input[offset+11])<<8)
@@ -245,40 +257,43 @@ func DecodeDXT5(input []byte, width, height uint) (output []byte, err error) {
 
 			colors[0] = pack_rgba(r0, g0, b0, 0)
 			colors[1] = pack_rgba(r1, g1, b1, 0)
-			colors[2] = pack_rgba(c2(r0, r1, c0, c1), c2(g0, g1, c0, c1), c2(b0, b1, c0, c1), 0)
-			colors[3] = pack_rgba(c3(r0, r1), c3(g0, g1), c3(b0, b1), 0)
 
-			bitcode_a := uint64(input[offset]) | uint64(input[offset+1])<<8 | uint64(input[offset+2])<<16 | uint64(input[offset+3])<<24 | uint64(input[offset+4])<<32 | uint64(input[offset+5])<<40 | uint64(input[offset+6])<<48 | uint64(input[offset+7])<<56
+			colors[2] = pack_rgba(lerp_13(r0, r1), lerp_13(g0, g1), lerp_13(b0, b1), 0)
+			colors[3] = pack_rgba(lerp_23(r0, r1), lerp_23(g0, g1), lerp_23(b0, b1), 0)
+
 			bitcode_c := uint32(input[offset+12]) | uint32(input[offset+13])<<8 | uint32(input[offset+14])<<16 | uint32(input[offset+15])<<24
-			bitcode_a >>= 16
 
 			for i := 0; i < 16; i++ {
+				alpha_idx := bitcode_a & 0x07
+				bitcode_a >>= 3
+
+				color_idx := bitcode_c & 0x03
+				bitcode_c >>= 2
+
+				final_color := alphas[alpha_idx] | colors[color_idx]
+
 				idx := i * 4
-				r, g, b, a := unpack_rgba(alphas[bitcode_a&0x07] | colors[bitcode_c&0x03])
+				r, g, b, a := unpack_rgba(final_color)
 				buffer[idx+0] = byte(r)
 				buffer[idx+1] = byte(g)
 				buffer[idx+2] = byte(b)
 				buffer[idx+3] = byte(a)
-
-				bitcode_a >>= 3
-				bitcode_c >>= 2
 			}
 
 			length := length_last * 4
 			if x < block_count_x-1 {
-				length = 4 * 4
+				length = 16
 			}
 
 			i := uint(0)
 			j := y * 4
 			for i < 4 && j < height {
-				bidx := (i * 4 * 4)
+				bidx := (i * 16)
 				oidx := (j*width + x*4) * 4
 
 				for k := uint(0); k < length; k++ {
 					output[oidx+k] = buffer[bidx+k]
 				}
-
 				i++
 				j++
 			}
